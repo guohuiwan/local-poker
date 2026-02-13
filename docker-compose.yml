@@ -1,0 +1,10 @@
+version: '3'
+services:
+  local-poker:
+    build: .
+    container_name: local-poker
+    ports:
+      - "3031:3000"
+    restart: always
+    environment:
+      - PORT=3000

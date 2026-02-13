@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>德州扑克 - 游戏中</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/game.css">
+</head>
+
+<body>
+  <div class="game-container">
+    <!-- Waiting Room -->
+    <div class="waiting-room" id="waiting-room">
+      <h1>等待玩家加入...</h1>
+      <div class="subtitle">将房间号分享给朋友</div>
+      <div class="room-id-display" id="room-id-display"></div>
+      <ul class="player-list" id="player-list"></ul>
+      <button class="btn-primary btn-start hidden" id="btn-start">开始游戏</button>
+      <button class="btn-leave" id="btn-leave-waiting">离开房间</button>
+    </div>
+
+    <!-- Game Table -->
+    <div class="hidden" id="game-view">
+      <div class="status-message" id="status-message"></div>
+
+      <div class="table-area">
+        <div class="poker-table" id="poker-table">
+          <div class="community-cards" id="community-cards"></div>
+          <div class="pot-display" id="pot-display"></div>
+        </div>
+      </div>
+
+      <div class="bottom-controls">
+        <div class="my-hand-area" id="my-hand"></div>
+        <div class="timer-bar" id="timer-bar">
+          <div class="timer-bar-fill" id="timer-fill"></div>
+        </div>
+        <div class="timer-text" id="timer-text"></div>
+
+        <div class="action-bar hidden" id="action-bar">
+          <button class="btn-fold" id="btn-fold">弃牌</button>
+          <button class="btn-check hidden" id="btn-check">过牌</button>
+          <button class="btn-call hidden" id="btn-call">跟注</button>
+
+          <div id="raise-controls" class="raise-controls hidden">
+            <span class="raise-amount" id="raise-amount">0</span>
+            <input type="range" id="raise-slider" min="0" max="0" value="0">
+            <input type="number" id="raise-input" class="raise-input" value="0">
+            <button class="btn-raise hidden" id="btn-raise">加注</button>
+          </div>
+
+          <button class="btn-allin hidden" id="btn-allin">全下</button>
+        </div>
+      </div>
+
+      <div class="game-log" id="game-log"></div>
+    </div>
+
+    <!-- Showdown Overlay -->
+    <div class="showdown-overlay hidden" id="showdown-overlay">
+      <div class="showdown-panel">
+        <h2 id="showdown-title">结算</h2>
+        <div id="showdown-results"></div>
+        <button class="btn-primary hidden" id="btn-next-hand">下一局</button>
+        <button class="btn-secondary hidden" id="btn-close-showdown" style="margin-top:10px;">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/socket.js"></script>
+  <script src="/js/tableRenderer.js"></script>
+  <script src="/js/game.js"></script>
+</body>
+
+</html>

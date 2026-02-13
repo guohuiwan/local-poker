@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>局域网德州扑克</title>
+  <link rel="stylesheet" href="/css/common.css">
+  <link rel="stylesheet" href="/css/lobby.css">
+</head>
+<body>
+  <div class="lobby-container">
+    <div class="logo">♠♥</div>
+    <div class="title">局域网德州扑克</div>
+    <div class="subtitle">和朋友一起玩 Texas Hold'em</div>
+
+    <div class="lobby-card">
+      <h2>🎮 创建房间</h2>
+      <div class="form-group">
+        <label>你的昵称</label>
+        <input type="text" id="create-name" placeholder="输入昵称" maxlength="12">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>初始筹码</label>
+          <input type="number" id="create-chips" value="1000" min="100" step="100">
+        </div>
+        <div class="form-group">
+          <label>大盲注</label>
+          <input type="number" id="create-bb" value="20" min="2" step="2">
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-create">创建房间</button>
+      <div class="error-message" id="create-error"></div>
+    </div>
+
+    <div class="divider">— 或者 —</div>
+
+    <div class="lobby-card">
+      <h2>🚪 加入房间</h2>
+      <div class="form-group">
+        <label>你的昵称</label>
+        <input type="text" id="join-name" placeholder="输入昵称" maxlength="12">
+      </div>
+      <div class="form-group">
+        <label>房间号</label>
+        <input type="text" id="join-room" placeholder="6位房间号" maxlength="6" style="text-transform:uppercase; letter-spacing:4px; font-weight:700;">
+      </div>
+      <button class="btn-primary" id="btn-join">加入房间</button>
+      <div class="error-message" id="join-error"></div>
+    </div>
+
+    <div class="server-info" id="server-info">
+      局域网其他设备请访问此地址加入游戏
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/socket.js"></script>
+  <script src="/js/lobby.js"></script>
+</body>
+</html>
