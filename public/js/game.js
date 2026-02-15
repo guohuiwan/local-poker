@@ -9,6 +9,35 @@
   const myId = () => socketClient.playerId;
   const myRoomId = () => socketClient.roomId;
 
+  // Turn notification beep using Web Audio API
+  let audioCtx = null;
+  function playTurnBeep() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = audioCtx.currentTime;
+      // First tone: 880Hz for 100ms
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.frequency.value = 880;
+      gain1.gain.setValueAtTime(0.3, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      osc1.connect(gain1).connect(audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.1);
+      // Second tone: 1046Hz for 100ms
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.frequency.value = 1046;
+      gain2.gain.setValueAtTime(0.3, now + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc2.connect(gain2).connect(audioCtx.destination);
+      osc2.start(now + 0.1);
+      osc2.stop(now + 0.2);
+    } catch (e) {
+      // Audio not supported or blocked
+    }
+  }
+
   // DOM elements
   const waitingRoom = document.getElementById('waiting-room');
   const gameView = document.getElementById('game-view');
@@ -104,10 +133,13 @@
     });
 
     // Community cards
+    const prevCardCount = parseInt(communityCardsEl.dataset.cardCount || '0');
     communityCardsEl.innerHTML = '';
-    for (const card of game.communityCards) {
-      communityCardsEl.appendChild(createCardElement(card));
-    }
+    game.communityCards.forEach((card, i) => {
+      const isNew = i >= prevCardCount;
+      communityCardsEl.appendChild(createCardElement(card, { dealing: isNew }));
+    });
+    communityCardsEl.dataset.cardCount = game.communityCards.length;
 
     // Pot
     if (game.pot > 0) {
@@ -354,6 +386,10 @@
 
   socket.on('game:timer', (data) => {
     startTimer(data.timeout);
+    // Play beep if it's my turn
+    if (data.playerId === myId()) {
+      playTurnBeep();
+    }
   });
 
   socket.on('game:timeout', (data) => {

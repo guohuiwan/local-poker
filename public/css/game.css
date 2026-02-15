@@ -137,8 +137,8 @@
 
 /* ===== Cards ===== */
 .card {
-  width: 48px;
-  height: 68px;
+  width: 56px;
+  height: 80px;
   border-radius: 6px;
   background: white;
   display: flex;
@@ -160,12 +160,12 @@
 }
 
 .card .card-rank {
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1;
 }
 
 .card .card-suit {
-  font-size: 16px;
+  font-size: 20px;
   line-height: 1;
 }
 
@@ -185,16 +185,16 @@
 }
 
 .card-small {
-  width: 36px;
-  height: 50px;
+  width: 42px;
+  height: 58px;
 }
 
 .card-small .card-rank {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .card-small .card-suit {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 /* ===== Player Seat ===== */
@@ -693,4 +693,14 @@
 
 .log-action {
   color: #eee;
+}
+
+/* ===== Card Deal Animation ===== */
+.card.dealing {
+  animation: cardDeal 0.4s ease-out;
+}
+
+@keyframes cardDeal {
+  from { transform: scale(0.3) rotateY(90deg); opacity: 0; }
+  to { transform: scale(1) rotateY(0); opacity: 1; }
 }

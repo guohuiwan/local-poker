@@ -412,8 +412,11 @@ class PokerGame {
 
     // If all remaining players are all-in (or only 1 can act), run out remaining cards
     if (allInOrFolded) {
-      // Automatically advance through remaining stages
-      this._advanceStage();
+      if (this.onRunoutContinue) {
+        this.onRunoutContinue();
+      } else {
+        this._advanceStage();
+      }
       return;
     }
 
@@ -661,6 +664,10 @@ class PokerGame {
 
   _findBBIndex() {
     return this.players.findIndex(p => p._isBB);
+  }
+
+  continueRunout() {
+    this._advanceStage();
   }
 
   _getCurrentMaxBet() {
