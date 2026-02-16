@@ -11,12 +11,15 @@
 .logo {
   font-size: 48px;
   margin-bottom: 8px;
+  filter: drop-shadow(0 0 12px var(--gold-glow));
 }
 
 .title {
+  font-family: var(--font-serif);
   font-size: 28px;
   font-weight: 700;
   margin-bottom: 4px;
+  letter-spacing: 0.5px;
 }
 
 .subtitle {
@@ -27,14 +30,17 @@
 
 .lobby-card {
   background: var(--bg-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--border-radius);
   padding: 28px;
   width: 100%;
   box-shadow: var(--shadow);
   margin-bottom: 20px;
+  backdrop-filter: blur(12px);
 }
 
 .lobby-card h2 {
+  font-family: var(--font-serif);
   font-size: 18px;
   margin-bottom: 20px;
   display: flex;
@@ -90,9 +96,16 @@
 
 .server-info code {
   color: var(--gold);
-  background: rgba(255,215,0,0.1);
+  background: rgba(240, 192, 64, 0.08);
   padding: 2px 8px;
   border-radius: 4px;
+  border: 1px solid rgba(240, 192, 64, 0.1);
+}
+
+.room-code-input {
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  font-weight: 700;
 }
 
 .error-message {

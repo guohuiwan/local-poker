@@ -5,12 +5,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>德州扑克 - 游戏中</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Playfair+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/common.css">
   <link rel="stylesheet" href="/css/game.css">
 </head>
 
 <body>
   <div class="game-container">
+    <div class="grain-overlay"></div>
     <!-- Waiting Room -->
     <div class="waiting-room" id="waiting-room">
       <h1>等待玩家加入...</h1>
@@ -64,7 +68,7 @@
         <h2 id="showdown-title">结算</h2>
         <div id="showdown-results"></div>
         <button class="btn-primary hidden" id="btn-next-hand">下一局</button>
-        <button class="btn-secondary hidden" id="btn-close-showdown" style="margin-top:10px;">关闭</button>
+        <button class="btn-secondary hidden" id="btn-close-showdown">关闭</button>
       </div>
     </div>
   </div>
