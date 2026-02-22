@@ -12,5 +12,5 @@ test-results/
 .env.local
 .env.*.local
 
-# AI configuration (contains API keys)
-server/ai/aiConfig.js
+# Claude Code configuration
+.claude/
