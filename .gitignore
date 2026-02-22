@@ -7,5 +7,10 @@ Dockerfile
 # Test results directory
 test-results/
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # AI configuration (contains API keys)
 server/ai/aiConfig.js
