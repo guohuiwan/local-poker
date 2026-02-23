@@ -14,3 +14,14 @@ test-results/
 
 # Claude Code configuration
 .claude/
+
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows system files
+ehthumbs.db
+Thumbs.db
