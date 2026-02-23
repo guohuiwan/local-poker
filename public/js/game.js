@@ -624,6 +624,26 @@
 
     showdownResults.innerHTML = '';
 
+    // Show community cards at top (not for fold wins)
+    if (!data.foldWin && data.communityCards && data.communityCards.length > 0) {
+      const communityDiv = document.createElement('div');
+      communityDiv.className = 'showdown-community';
+      communityDiv.innerHTML = '<div class="showdown-community-label">公共牌</div>';
+      const cardsRow = document.createElement('div');
+      cardsRow.className = 'showdown-community-cards';
+      for (const card of data.communityCards) {
+        cardsRow.appendChild(createCardElement(card, { small: true }));
+      }
+      communityDiv.appendChild(cardsRow);
+      showdownResults.appendChild(communityDiv);
+    }
+
+    // Helper: check if a card matches any hole card
+    function isHoleCard(card, holeCards) {
+      if (!holeCards) return false;
+      return holeCards.some(h => h.rank === card.rank && h.suit === card.suit);
+    }
+
     // Show winners
     for (const result of data.results) {
       const div = document.createElement('div');
@@ -636,14 +656,52 @@
       }
       div.innerHTML = html;
 
-      // Show best cards
+      // Show hole cards (left) and best combination (right)
       if (result.bestCards && result.bestCards.length > 0) {
-        const cardsDiv = document.createElement('div');
-        cardsDiv.className = 'showdown-cards';
-        for (const card of result.bestCards) {
-          cardsDiv.appendChild(createCardElement(card, { small: true }));
+        const ph = data.playerHands && data.playerHands.find(p => p.id === result.player.id);
+        const holeCards = ph ? ph.hand : null;
+        const container = document.createElement('div');
+        container.className = 'showdown-cards-container';
+
+        // Hole cards group
+        if (holeCards && holeCards.length > 0) {
+          const holeGroup = document.createElement('div');
+          holeGroup.className = 'showdown-cards-group';
+          const holeCardsDiv = document.createElement('div');
+          holeCardsDiv.className = 'showdown-cards';
+          for (const card of holeCards) {
+            const el = createCardElement(card, { small: true });
+            el.classList.add('card-hole');
+            holeCardsDiv.appendChild(el);
+          }
+          holeGroup.appendChild(holeCardsDiv);
+          const holeLabel = document.createElement('div');
+          holeLabel.className = 'showdown-cards-label';
+          holeLabel.textContent = '手牌';
+          holeGroup.appendChild(holeLabel);
+          container.appendChild(holeGroup);
         }
-        div.appendChild(cardsDiv);
+
+        // Best 5-card combination group
+        const bestGroup = document.createElement('div');
+        bestGroup.className = 'showdown-cards-group';
+        const bestCardsDiv = document.createElement('div');
+        bestCardsDiv.className = 'showdown-cards';
+        for (const card of result.bestCards) {
+          const el = createCardElement(card, { small: true });
+          if (isHoleCard(card, holeCards)) {
+            el.classList.add('card-hole');
+          }
+          bestCardsDiv.appendChild(el);
+        }
+        bestGroup.appendChild(bestCardsDiv);
+        const bestLabel = document.createElement('div');
+        bestLabel.className = 'showdown-cards-label';
+        bestLabel.textContent = '最佳组合';
+        bestGroup.appendChild(bestLabel);
+        container.appendChild(bestGroup);
+
+        div.appendChild(container);
       }
 
       showdownResults.appendChild(div);
@@ -663,12 +721,50 @@
         html += `<div class="winner-hand">${ph.bestHand}</div>`;
         div.innerHTML = html;
 
-        const cardsDiv = document.createElement('div');
-        cardsDiv.className = 'showdown-cards';
-        for (const card of ph.hand) {
-          cardsDiv.appendChild(createCardElement(card, { small: true }));
+        // Show hole cards (left) and best combination (right)
+        const bestCards = ph.bestCards || ph.hand;
+        const container = document.createElement('div');
+        container.className = 'showdown-cards-container';
+
+        // Hole cards group
+        if (ph.hand && ph.hand.length > 0) {
+          const holeGroup = document.createElement('div');
+          holeGroup.className = 'showdown-cards-group';
+          const holeCardsDiv = document.createElement('div');
+          holeCardsDiv.className = 'showdown-cards';
+          for (const card of ph.hand) {
+            const el = createCardElement(card, { small: true });
+            el.classList.add('card-hole');
+            holeCardsDiv.appendChild(el);
+          }
+          holeGroup.appendChild(holeCardsDiv);
+          const holeLabel = document.createElement('div');
+          holeLabel.className = 'showdown-cards-label';
+          holeLabel.textContent = '手牌';
+          holeGroup.appendChild(holeLabel);
+          container.appendChild(holeGroup);
         }
-        div.appendChild(cardsDiv);
+
+        // Best 5-card combination group
+        const bestGroup = document.createElement('div');
+        bestGroup.className = 'showdown-cards-group';
+        const bestCardsDiv = document.createElement('div');
+        bestCardsDiv.className = 'showdown-cards';
+        for (const card of bestCards) {
+          const el = createCardElement(card, { small: true });
+          if (isHoleCard(card, ph.hand)) {
+            el.classList.add('card-hole');
+          }
+          bestCardsDiv.appendChild(el);
+        }
+        bestGroup.appendChild(bestCardsDiv);
+        const bestLabel = document.createElement('div');
+        bestLabel.className = 'showdown-cards-label';
+        bestLabel.textContent = '最佳组合';
+        bestGroup.appendChild(bestLabel);
+        container.appendChild(bestGroup);
+
+        div.appendChild(container);
 
         showdownResults.appendChild(div);
       }

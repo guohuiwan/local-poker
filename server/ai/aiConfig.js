@@ -11,9 +11,14 @@
  * - AI_LLM_API_VERSION: API version (default: 2024-12-01-preview)
  * - AI_LLM_LOG: Set to '1' to enable LLM request/response logging
  */
+if (!process.env.AI_LLM_BASE_URL || !process.env.AI_LLM_API_KEY) {
+  console.warn('[AI] Warning: AI_LLM_BASE_URL or AI_LLM_API_KEY not set. AI features will be unavailable.');
+}
+
 module.exports = {
   endpoint: process.env.AI_LLM_BASE_URL,
   apiKey: process.env.AI_LLM_API_KEY,
   apiVersion: process.env.AI_LLM_API_VERSION || '2024-12-01-preview',
   model: process.env.AI_LLM_MODEL || 'gpt-5.2',
+  log: process.env.AI_LLM_LOG === '1',
 };

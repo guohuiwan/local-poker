@@ -15,7 +15,7 @@ const REMOVE_TIMEOUT = 60000;         // 60 seconds before removal
 const PAGE_NAV_GRACE = 5000;          // 5 seconds grace for page navigation
 
 // Game state broadcast delays
-const AUTO_START_DELAY = 8000;        // Auto-start next hand delay
+const AUTO_START_DELAY = 120000;        // Auto-start next hand delay
 const SHOWDOWN_STATE_DELAY = 200;     // Showdown state update delay
 const PLAYER_ACTION_STATE_DELAY = 100; // Player action state update delay
 

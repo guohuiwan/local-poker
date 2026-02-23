@@ -304,7 +304,7 @@ class AIDecisionEngine {
         return this._baselineFallback(input, baseline);
       }
 
-      // Parse JSON from model output
+      // Parse JSON from model output (reasoning + action)
       const parsed = this._parseLLMAction(text);
       _llmLog('parsed action:', parsed ? JSON.stringify(parsed) : '(parse failed)');
 
@@ -336,9 +336,9 @@ class AIDecisionEngine {
       '4. 优先参考raiseSuggestions中的建议值（halfPot、pot）来确定加注金额，不要随意选择极端值。',
       '',
       '【输出格式】',
-      '请仅回复JSON对象：{"action": "fold|check|call|raise", "amount": <number or null>}。',
-      '对于raise，amount是"raise to"的total。对于fold/check/call，amount应为null。',
-      '不要包含任何其他text。'
+      '先用1-2句话简要说明你的思考过程（中文），然后在最后一行输出JSON对象。',
+      'JSON格式：{"action": "fold|check|call|raise", "amount": <number or null>}',
+      '对于raise，amount是"raise to"的total。对于fold/check/call，amount应为null。'
     ];
 
     if (personality) {
@@ -430,9 +430,10 @@ class AIDecisionEngine {
    * Parse a JSON {action, amount} from LLM text output.
    */
   _parseLLMAction(text) {
-    // Try to extract JSON from the text (may have markdown fences or extra text)
-    const jsonMatch = text.match(/\{[\s\S]*?\}/);
-    if (!jsonMatch) return null;
+    // Extract the last JSON object from the text (reasoning comes before the action)
+    const jsonMatches = text.match(/\{[^{}]*\}/g);
+    if (!jsonMatches || jsonMatches.length === 0) return null;
+    const jsonMatch = [jsonMatches[jsonMatches.length - 1]];
 
     try {
       const obj = JSON.parse(jsonMatch[0]);
