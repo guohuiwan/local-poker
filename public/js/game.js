@@ -638,6 +638,24 @@
       showdownResults.appendChild(communityDiv);
     }
 
+    // Show my hand at the top (not for fold wins)
+    if (!data.foldWin && data.playerHands && data.playerHands.length > 0) {
+      const myHand = data.playerHands.find(ph => ph.id === myId());
+      if (myHand && myHand.hand && myHand.hand.length > 0) {
+        const myHandDiv = document.createElement('div');
+        myHandDiv.className = 'showdown-my-hand';
+        myHandDiv.innerHTML = '<div class="showdown-my-hand-label">我的手牌</div>';
+        const cardsRow = document.createElement('div');
+        cardsRow.className = 'showdown-my-hand-cards';
+        for (const card of myHand.hand) {
+          const cardEl = createCardElement(card, { small: true });
+          cardsRow.appendChild(cardEl);
+        }
+        myHandDiv.appendChild(cardsRow);
+        showdownResults.appendChild(myHandDiv);
+      }
+    }
+
     // Helper: check if a card matches any hole card
     function isHoleCard(card, holeCards) {
       if (!holeCards) return false;

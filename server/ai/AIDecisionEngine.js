@@ -1,11 +1,14 @@
 /**
- * AI Decision Engine (MVP)
+ * AI Decision Engine — Action Mix Sampling + Directive LLM Prompting
  *
  * Decision flow:
- *   1. normalizeInput() — collect game state into structured input
- *   2. computeBaseline() — simple heuristic strategy (placeholder for GTO)
- *   3. decideWithLLM() — TODO: call real LLM for style-aware selection
- *   4. validateAction() — legality check; fallback to baseline if invalid
+ *   1. normalizeInput()      — collect game state into structured input
+ *   2. _computeQuality()     — hand quality 0-1 score
+ *   3. computeActionMix()    — probability distribution per action
+ *   4. sampleAction()        — weighted random pick
+ *   5. computeRaiseSizing()  — tier sampling + jitter (if raise)
+ *   6. decideWithLLM()       — directive prompt: reasoning + optional raise tuning
+ *   7. validateAction()      — legality check; _safeFallback() if invalid
  */
 
 const { HandEvaluator } = require('../game/HandEvaluator');
@@ -27,25 +30,77 @@ const AI_PERSONALITIES = {
   BALANCED: {
     id: 'balanced',
     name: '均衡',
+    description: '根据牌力和赔率合理决策，各种动作频率适中。',
     instruction: '根据牌力和赔率合理决策。偶尔在有利位置进行小额诈唬，强牌时正常价值下注（锅注的50-75%）。'
   },
   BLUFFER: {
     id: 'bluffer',
     name: '诈唬',
+    description: '弱牌时更常诈唬加注，强牌时倾向慢打隐藏牌力，下注偏小。',
     instruction: '在有利位置时比均衡风格更频繁选择下注而非过牌，弱牌时偶尔做小额诈唬（不超过锅注）。强牌时正常跟注或小幅加注，避免大注暴露风格。'
   },
   AGGRESSIVE: {
     id: 'aggressive',
     name: '激进',
+    description: '更频繁加注，下注档位偏大，弃牌频率低。',
     instruction: '比均衡风格更频繁加注，中等以上手牌倾向加注而非跟注。强牌时选择较大的价值下注（锅注的75-100%）。但不用全下代替正常加注。'
   }
 };
 
-// Personality-specific baseline parameters
+// ── Personality-specific action weights & sizing tiers ──
+
 const PERSONALITY_CONFIG = {
-  balanced:    { raiseQualityThreshold: 0.8, raiseSizingFraction: 0.35, bluffProb: 0.08 },
-  aggressive:  { raiseQualityThreshold: 0.5, raiseSizingFraction: 0.55, bluffProb: 0.10 },
-  bluffer:     { raiseQualityThreshold: 0.7, raiseSizingFraction: 0.25, bluffProb: 0.18 }
+  balanced: {
+    actionWeights: {
+      raiseBoost: 1.0,
+      callBoost: 1.0,
+      foldBoost: 1.0,
+      bluffBoost: 1.0,
+      slowplayBoost: 1.0
+    },
+    sizingTiers: [
+      { fraction: 0.33, weight: 0.10 },
+      { fraction: 0.50, weight: 0.35 },
+      { fraction: 0.67, weight: 0.35 },
+      { fraction: 0.80, weight: 0.15 },
+      { fraction: 1.00, weight: 0.05 }
+    ],
+    jitterRange: 0.08
+  },
+  aggressive: {
+    actionWeights: {
+      raiseBoost: 1.6,
+      callBoost: 0.9,
+      foldBoost: 0.7,
+      bluffBoost: 1.3,
+      slowplayBoost: 0.6
+    },
+    sizingTiers: [
+      { fraction: 0.50, weight: 0.10 },
+      { fraction: 0.67, weight: 0.30 },
+      { fraction: 0.80, weight: 0.30 },
+      { fraction: 1.00, weight: 0.25 },
+      { fraction: 1.50, weight: 0.05 }
+    ],
+    jitterRange: 0.10
+  },
+  bluffer: {
+    actionWeights: {
+      raiseBoost: 1.1,
+      callBoost: 1.0,
+      foldBoost: 0.9,
+      bluffBoost: 2.2,
+      slowplayBoost: 1.5
+    },
+    sizingTiers: [
+      { fraction: 0.25, weight: 0.15 },
+      { fraction: 0.33, weight: 0.35 },
+      { fraction: 0.50, weight: 0.35 },
+      { fraction: 0.67, weight: 0.10 },
+      { fraction: 1.00, weight: 0.05 }
+    ],
+    jitterRange: 0.10
+  }
 };
 const DEFAULT_PERSONALITY_CONFIG = PERSONALITY_CONFIG.balanced;
 
@@ -59,15 +114,25 @@ function getRandomPersonality() {
 }
 
 // Hand quality thresholds
-const WEAK_HAND_THRESHOLD = 0.3;
-const MEDIUM_HAND_THRESHOLD = 0.5;
-const STRONG_HAND_THRESHOLD = 0.7;
-const VERY_STRONG_HAND_THRESHOLD = 0.8;
+const QUALITY_TIERS = {
+  very_strong: 0.8,
+  strong: 0.7,
+  medium: 0.5,
+  marginal: 0.3
+  // below 0.3 = weak
+};
+
+// Base action probabilities by quality tier
+const BASE_ACTION_PROBS = {
+  very_strong: { fold: 0.00, check: 0.10, call: 0.15, raise: 0.75 },
+  strong:      { fold: 0.02, check: 0.13, call: 0.35, raise: 0.50 },
+  medium:      { fold: 0.12, check: 0.25, call: 0.38, raise: 0.25 },
+  marginal:    { fold: 0.35, check: 0.25, call: 0.25, raise: 0.15 },
+  weak:        { fold: 0.60, check: 0.25, call: 0.08, raise: 0.07 }
+};
 
 class AIDecisionEngine {
-  constructor() {
-    // TODO: accept aiConfig (style, aggression, etc.)
-  }
+  constructor() {}
 
   /**
    * Main entry point: decide an action for the AI player.
@@ -78,21 +143,77 @@ class AIDecisionEngine {
    */
   async decide(game, playerId, personality = null) {
     const input = this.normalizeInput(game, playerId);
-    const baseline = this.computeBaseline(input, personality);
+    const pConfig = personality
+      ? (PERSONALITY_CONFIG[personality.id] || DEFAULT_PERSONALITY_CONFIG)
+      : DEFAULT_PERSONALITY_CONFIG;
 
-    let decision = await this.decideWithLLM(input, baseline, personality);
+    // Compute hand quality
+    const quality = this._computeQuality(input);
+    const qualityLabel = this._qualityToLabel(quality);
+
+    // Build probability distribution and sample
+    const actionMix = this.computeActionMix(input, quality, pConfig);
+    const sampledAction = this.sampleAction(actionMix);
+
+    // Compute raise sizing if needed
+    let targetSizing = null;
+    let sizingRange = null;
+    const raiseInfo = input.availableActions.find(a => a.action === 'raise');
+    if (sampledAction === 'raise' && raiseInfo) {
+      targetSizing = this.computeRaiseSizing(input, pConfig, quality);
+      sizingRange = { min: raiseInfo.min, max: raiseInfo.max };
+    }
+
+    // Build sampling context string for LLM
+    const samplingContext = `牌力${qualityLabel}, 位置${input.position}, ${personality ? personality.name : '均衡'}性格`;
+
+    // Build the decision (before LLM)
+    let decision;
+    if (sampledAction === 'raise' && targetSizing != null) {
+      decision = { action: 'raise', amount: targetSizing, meta: { source: 'sampled' } };
+    } else if (sampledAction === 'fold') {
+      decision = { action: 'fold', amount: null, meta: { source: 'sampled' } };
+    } else if (sampledAction === 'check') {
+      decision = { action: 'check', amount: null, meta: { source: 'sampled' } };
+    } else {
+      decision = { action: 'call', amount: null, meta: { source: 'sampled' } };
+    }
+
+    // Call LLM for reasoning (and optional raise amount tuning)
+    const llmResult = await this.decideWithLLM(input, {
+      personality,
+      actionMix,
+      sampledAction,
+      samplingContext,
+      targetSizing,
+      sizingRange,
+      quality,
+      qualityLabel
+    });
+
+    if (llmResult) {
+      decision.meta.source = 'sampled+llm';
+      decision.meta.reasoning = llmResult.reasoning || null;
+      // LLM can tune raise amount within range
+      if (sampledAction === 'raise' && typeof llmResult.amount === 'number' && sizingRange) {
+        const tuned = Math.round(llmResult.amount);
+        if (tuned >= sizingRange.min && tuned <= sizingRange.max) {
+          decision.amount = tuned;
+        }
+      }
+    }
 
     // Validate and fallback
     if (!this.validateAction(decision, input)) {
-      console.log(`[AI] Invalid action from LLM: ${JSON.stringify(decision)}, falling back to baseline`);
-      decision = { ...baseline.baselineAction, meta: { source: 'baseline', fallback: true } };
+      console.log(`[AI] Invalid sampled action: ${JSON.stringify(decision)}, using safe fallback`);
+      decision = this._safeFallback(input);
     }
 
     return decision;
   }
 
   /**
-   * Step 1: Normalize game state into structured input for decision-making.
+   * Normalize game state into structured input for decision-making.
    */
   normalizeInput(game, playerId) {
     const player = game.players.find(p => p.id === playerId);
@@ -101,7 +222,6 @@ class AIDecisionEngine {
     const activePlayers = game.getActivePlayers();
     const actionablePlayers = game.getActionablePlayers();
 
-    // Map stage to street name
     const stageToStreet = {
       'PRE_FLOP': 'preflop',
       'FLOP': 'flop',
@@ -109,17 +229,14 @@ class AIDecisionEngine {
       'RIVER': 'river'
     };
 
-    // Compute available actions (same logic as PokerGame._getAvailableActions)
     const availableActions = game._getAvailableActions(player);
 
-    // Evaluate hand strength if we have community cards
     let handStrength = null;
     if (player.hand.length === 2 && game.communityCards.length > 0) {
       const allCards = [...player.hand, ...game.communityCards];
       handStrength = HandEvaluator.evaluate(allCards);
     }
 
-    // Simple pre-flop hand ranking (0-1 scale, very rough)
     let preflopStrength = 0;
     if (player.hand.length === 2 && game.communityCards.length === 0) {
       preflopStrength = this._estimatePreflopStrength(player.hand);
@@ -146,123 +263,201 @@ class AIDecisionEngine {
       preflopStrength,
       availableActions,
       bigBlind: game.bigBlind,
-      smallBlind: game.smallBlind,
-      // TODO: actionHistory for current hand
+      smallBlind: game.smallBlind
     };
   }
 
   /**
-   * Step 2: Compute baseline strategy action.
-   * MVP: simple heuristic based on hand strength & pot odds.
-   * Personality config adjusts raise thresholds, sizing, and bluff frequency.
+   * Compute hand quality (0-1) from input.
    */
-  computeBaseline(input, personality = null) {
-    const { street, potSize, currentBet, playerBet, playerChips,
-            callAmount, minRaise, preflopStrength, handStrength,
-            availableActions, bigBlind } = input;
+  _computeQuality(input) {
+    if (input.street === 'preflop') {
+      return input.preflopStrength;
+    } else if (input.handStrength) {
+      return this._handRankToQuality(input.handStrength);
+    }
+    return 0.3; // default mediocre
+  }
 
-    // Look up personality-specific parameters
-    const pConfig = personality
-      ? (PERSONALITY_CONFIG[personality.id] || DEFAULT_PERSONALITY_CONFIG)
-      : DEFAULT_PERSONALITY_CONFIG;
+  /**
+   * Map quality score to label.
+   */
+  _qualityToLabel(quality) {
+    if (quality >= QUALITY_TIERS.very_strong) return 'very_strong';
+    if (quality >= QUALITY_TIERS.strong) return 'strong';
+    if (quality >= QUALITY_TIERS.medium) return 'medium';
+    if (quality >= QUALITY_TIERS.marginal) return 'marginal';
+    return 'weak';
+  }
 
-    // Determine hand quality (0-1 rough scale)
-    let quality = WEAK_HAND_THRESHOLD; // default mediocre
-    if (street === 'preflop') {
-      quality = preflopStrength;
-    } else if (handStrength) {
-      // Use hand rank for post-flop quality estimation
-      quality = this._handRankToQuality(handStrength);
+  /**
+   * Compute action probability distribution with personality/position/pot-odds adjustments.
+   * Returns { fold, check, call, raise } summing to 1.0
+   */
+  computeActionMix(input, quality, pConfig) {
+    const label = this._qualityToLabel(quality);
+    const mix = { ...BASE_ACTION_PROBS[label] };
+    const w = pConfig.actionWeights;
+
+    // 1. Personality boosts
+    mix.raise *= w.raiseBoost;
+    mix.call *= w.callBoost;
+    mix.fold *= w.foldBoost;
+
+    // 2. Bluff boost (weak/marginal hands get extra raise weight)
+    if (label === 'weak' || label === 'marginal') {
+      mix.raise *= w.bluffBoost;
     }
 
-    // Pot odds
-    const potOdds = callAmount > 0 ? callAmount / (potSize + callAmount) : 0;
+    // 3. Slowplay boost (strong/very_strong hands get extra check/call weight)
+    if (label === 'very_strong' || label === 'strong') {
+      mix.check *= w.slowplayBoost;
+      mix.call *= w.slowplayBoost;
+    }
 
-    // Decide baseline action using personality-aware raise threshold
-    let baselineAction;
+    // 4. Position adjustment: late position favors raising
+    const latePositions = ['dealer', 'late'];
+    if (latePositions.includes(input.position)) {
+      mix.raise *= 1.15;
+      mix.fold *= 0.85;
+    }
 
-    if (quality >= pConfig.raiseQualityThreshold) {
-      // Hand meets personality's raise threshold: raise
-      const raiseInfo = availableActions.find(a => a.action === 'raise');
-      if (raiseInfo) {
-        // Cap raise at pot-sized: min + fraction of (pot-level raise - min)
-        const potSizedRaise = Math.min(currentBet + potSize, raiseInfo.max);
-        const raiseRange = Math.max(0, potSizedRaise - raiseInfo.min);
-        const raiseAmount = Math.min(
-          Math.round(raiseInfo.min + raiseRange * pConfig.raiseSizingFraction),
-          raiseInfo.max
-        );
-        baselineAction = { action: 'raise', amount: raiseAmount };
-      } else {
-        baselineAction = callAmount > 0
-          ? { action: 'call', amount: null }
-          : { action: 'check', amount: null };
+    // 5. Pot odds adjustment
+    if (input.callAmount > 0 && input.potSize > 0) {
+      const potOdds = input.callAmount / (input.potSize + input.callAmount);
+      if (potOdds > 0.35) {
+        // Expensive to call relative to pot — increase fold, decrease call
+        mix.fold *= 1.3;
+        mix.call *= 0.7;
+      } else if (potOdds < 0.15) {
+        // Very cheap to call — decrease fold, increase call
+        mix.fold *= 0.6;
+        mix.call *= 1.4;
       }
-    } else if (quality >= MEDIUM_HAND_THRESHOLD) {
-      // Medium hand: call or check
-      if (callAmount === 0 || currentBet <= playerBet) {
-        baselineAction = { action: 'check', amount: null };
-      } else if (potOdds < 0.35) {
-        baselineAction = { action: 'call', amount: null };
-      } else {
-        baselineAction = { action: 'fold', amount: null };
-      }
-    } else if (quality >= WEAK_HAND_THRESHOLD) {
-      // Marginal: check if free, otherwise fold (with some call threshold)
-      if (callAmount === 0 || currentBet <= playerBet) {
-        baselineAction = { action: 'check', amount: null };
-      } else if (callAmount <= bigBlind && potOdds < 0.2) {
-        baselineAction = { action: 'call', amount: null };
-      } else {
-        baselineAction = { action: 'fold', amount: null };
-      }
+    }
+
+    // 6. Short stack: chips < 5BB → push/fold simplification
+    if (input.playerChips < input.bigBlind * 5) {
+      // Polarize to raise (push) or fold
+      mix.raise += mix.call * 0.7 + mix.check * 0.5;
+      mix.fold += mix.call * 0.3 + mix.check * 0.5;
+      mix.call = 0;
+      mix.check = 0;
+    }
+
+    // 7. Legality adjustments
+    const canCheck = input.availableActions.includes('check') ||
+      (input.currentBet <= input.playerBet);
+    const canRaise = !!input.availableActions.find(a => a.action === 'raise');
+    const needsCall = input.callAmount > 0 && input.currentBet > input.playerBet;
+
+    if (!canCheck && !needsCall) {
+      // Can't check and nothing to call — shouldn't happen, but transfer to fold
+      mix.fold += mix.check;
+      mix.check = 0;
+    } else if (!canCheck && needsCall) {
+      // Can't check (there's a bet) — transfer check weight to call
+      mix.call += mix.check;
+      mix.check = 0;
+    } else if (canCheck && !needsCall) {
+      // Can check (no bet to match) — transfer fold weight to check
+      mix.check += mix.fold;
+      mix.fold = 0;
+    }
+
+    if (!canRaise) {
+      mix.call += mix.raise;
+      mix.raise = 0;
+    }
+
+    // 8. Normalize
+    const total = mix.fold + mix.check + mix.call + mix.raise;
+    if (total > 0) {
+      mix.fold /= total;
+      mix.check /= total;
+      mix.call /= total;
+      mix.raise /= total;
     } else {
-      // Weak hand: fold (or check if free)
-      if (callAmount === 0 || currentBet <= playerBet) {
-        baselineAction = { action: 'check', amount: null };
-      } else {
-        baselineAction = { action: 'fold', amount: null };
-      }
+      // Shouldn't happen, but default to check/fold
+      mix.fold = canCheck ? 0 : 1;
+      mix.check = canCheck ? 1 : 0;
     }
 
-    // Build action mix (simplified probabilities)
-    const actionMix = {
-      fold: quality < WEAK_HAND_THRESHOLD ? 0.6 : quality < MEDIUM_HAND_THRESHOLD ? 0.3 : 0.05,
-      check: 0, // filled contextually
-      call: quality >= WEAK_HAND_THRESHOLD ? 0.4 : 0.1,
-      raise: quality >= STRONG_HAND_THRESHOLD ? 0.4 : quality >= MEDIUM_HAND_THRESHOLD ? 0.15 : 0.05
-    };
-
-    return {
-      baselineAction: { ...baselineAction, meta: { source: 'baseline' } },
-      actionMix,
-      quality,
-      pConfig
-    };
+    return mix;
   }
 
   /**
-   * Step 3: LLM-based decision.
-   * Calls Azure OpenAI Responses API when configured, falls back to baseline heuristic.
-   *
-   * Env vars: AI_LLM_BASE_URL, AI_LLM_API_KEY, AI_LLM_MODEL (default gpt-5.2)
-   *
-   * @param {object} input - normalized game input
-   * @param {object} baseline - baseline strategy result
-   * @param {object} personality - AI personality object (optional)
-   * @returns {Promise<{ action: string, amount: number|null, meta: object }>}
+   * Weighted random sample from action probability distribution.
+   * @returns {'fold'|'check'|'call'|'raise'}
    */
-  async decideWithLLM(input, baseline, personality = null) {
+  sampleAction(mix) {
+    const rand = Math.random();
+    let cumulative = 0;
+    for (const action of ['fold', 'check', 'call', 'raise']) {
+      cumulative += mix[action];
+      if (rand < cumulative) return action;
+    }
+    return 'fold'; // fallback (rounding edge case)
+  }
+
+  /**
+   * Compute raise amount by sampling from sizing tiers with jitter.
+   * @returns {number} raise-to amount, clamped to legal range
+   */
+  computeRaiseSizing(input, pConfig, quality) {
+    const { potSize, currentBet, bigBlind, availableActions } = input;
+    const raiseInfo = availableActions.find(a => a.action === 'raise');
+    if (!raiseInfo) return null;
+
+    // 1. Sample a tier from sizingTiers by weight
+    const tiers = pConfig.sizingTiers;
+    const totalWeight = tiers.reduce((s, t) => s + t.weight, 0);
+    let rand = Math.random() * totalWeight;
+    let selectedFraction = tiers[0].fraction;
+    for (const tier of tiers) {
+      rand -= tier.weight;
+      if (rand <= 0) {
+        selectedFraction = tier.fraction;
+        break;
+      }
+    }
+
+    // 2. Base amount = currentBet + fraction * potSize
+    let amount = currentBet + selectedFraction * potSize;
+
+    // 3. Jitter: ±jitterRange
+    const jitter = 1 + (Math.random() * 2 - 1) * pConfig.jitterRange;
+    amount *= jitter;
+
+    // 4. Round to nearest bigBlind
+    amount = Math.round(amount / bigBlind) * bigBlind;
+
+    // 5. Clamp to legal range
+    amount = Math.max(raiseInfo.min, Math.min(raiseInfo.max, amount));
+
+    return amount;
+  }
+
+  /**
+   * Directive LLM call: action is already decided, LLM provides reasoning
+   * and optionally tunes raise amount within the given range.
+   */
+  async decideWithLLM(input, context) {
     const baseUrl = `${aiConfig.endpoint}/openai/v1`;
     const apiKey = aiConfig.apiKey;
     const model = aiConfig.model;
-    const instructions = this._buildLLMInstructions(personality);
-    const userInput = this._buildLLMInput(input, baseline);
+
+    const { personality, actionMix, sampledAction, samplingContext,
+            targetSizing, sizingRange, quality, qualityLabel } = context;
+
+    const instructions = this._buildLLMInstructions(personality, sampledAction);
+    const userInput = this._buildLLMInput(input, context);
 
     try {
       _llmLog('--- REQUEST ---');
       _llmLog('model:', model);
-      _llmLog('temperature:', 0.7);
+      _llmLog('sampledAction:', sampledAction);
+      _llmLog('actionMix:', JSON.stringify(actionMix));
       _llmLog('instructions:', instructions);
       _llmLog('input:', userInput);
 
@@ -288,104 +483,60 @@ class AIDecisionEngine {
       clearTimeout(timeout);
 
       if (!res.ok) {
-        console.log(`[AI] LLM HTTP error ${res.status}, falling back to baseline`);
-        return this._baselineFallback(input, baseline);
+        console.log(`[AI] LLM HTTP error ${res.status}, using sampled action without LLM`);
+        return null;
       }
 
       const data = await res.json();
-
-      // Extract text from Responses API output
       const text = this._extractResponseText(data);
       _llmLog('--- RESPONSE ---');
       _llmLog('raw text:', text || '(empty)');
 
       if (!text) {
-        console.log('[AI] LLM returned empty response, falling back to baseline');
-        return this._baselineFallback(input, baseline);
+        console.log('[AI] LLM returned empty response, using sampled action');
+        return null;
       }
 
-      // Parse JSON from model output (reasoning + action)
-      const parsed = this._parseLLMAction(text);
-      _llmLog('parsed action:', parsed ? JSON.stringify(parsed) : '(parse failed)');
-
-      if (parsed) {
-        return { action: parsed.action, amount: parsed.amount ?? null, meta: { source: 'llm' } };
-      }
-
-      console.log(`[AI] Failed to parse LLM output: ${text.slice(0, 200)}`);
-      return this._baselineFallback(input, baseline);
+      const parsed = this._parseLLMResponse(text);
+      _llmLog('parsed:', parsed ? JSON.stringify(parsed) : '(parse failed)');
+      return parsed;
     } catch (err) {
       const reason = err.name === 'AbortError' ? 'timeout' : err.message;
-      console.log(`[AI] LLM call failed (${reason}), falling back to baseline`);
-      return this._baselineFallback(input, baseline);
+      console.log(`[AI] LLM call failed (${reason}), using sampled action`);
+      return null;
     }
   }
 
   /**
-   * Build the system instructions for the LLM.
-   * @param {object} personality - AI personality object (optional)
+   * Build directive system instructions for the LLM.
    */
-  _buildLLMInstructions(personality = null) {
-    const instructions = [
-      '你是一个poker AI助手。根据当前game state和baseline recommendation，决定最佳action。',
+  _buildLLMInstructions(personality, sampledAction) {
+    const lines = [
+      '你是一个poker AI的思维引擎。动作已经由代码层通过概率抽样决定，你的任务是：',
+      `1. 用一句中文解释这个决定的思考过程（参考性格和局面，生成自然的"真人式"理由）`,
+      `2. 如果动作是raise，在给定的sizingRange范围内给出具体金额（可微调targetSizing）`,
       '',
-      '【不可违反的理性原则】',
-      '1. 下注大小必须与手牌强度匹配：弱牌(weak)下注不超过锅注，中等牌(medium)下注锅注的50-75%，强牌(strong/very_strong)可以做大注。',
-      '2. all-in仅限以下情况：handQualityLabel为very_strong、筹码不足5个大盲注、或跟注金额已超过筹码的80%。',
-      '3. 诈唬下注不超过锅注大小。',
-      '4. 优先参考raiseSuggestions中的建议值（halfPot、pot）来确定加注金额，不要随意选择极端值。',
+      '【重要】你不能改变已决定的动作，只能提供理由和微调raise金额。',
       '',
       '【输出格式】',
-      '先用1-2句话简要说明你的思考过程（中文），然后在最后一行输出JSON对象。',
-      'JSON格式：{"action": "fold|check|call|raise", "amount": <number or null>}',
-      '对于raise，amount是"raise to"的total。对于fold/check/call，amount应为null。'
+      '输出一个JSON对象，不要输出其他内容：',
+      '{"amount": <number or null>, "reasoning": "一句话中文理由"}'
     ];
 
     if (personality) {
-      instructions.push('');
-      instructions.push(`【风格偏好（在理性原则范围内调整）】`);
-      instructions.push(`你的游戏风格是：${personality.name}。${personality.instruction}`);
+      lines.push('');
+      lines.push(`【性格】${personality.name}：${personality.description || personality.instruction}`);
     }
 
-    return instructions.join('\n');
+    return lines.join('\n');
   }
 
   /**
-   * Build the user input message for the LLM.
-   * Exposes named raise suggestions instead of raw min/max to avoid anchoring on all-in.
+   * Build directive user input for the LLM with full decision context.
    */
-  _buildLLMInput(input, baseline) {
-    // Build action name list (no min/max details)
-    const actionNames = [];
-    for (const a of input.availableActions) {
-      if (typeof a === 'string') actionNames.push(a);
-      else if (a.action && a.action !== 'allin') actionNames.push(a.action);
-    }
-
-    // Build raise suggestions with named anchors
-    let raiseSuggestions = null;
-    const raiseInfo = input.availableActions.find(a => a.action === 'raise');
-    if (raiseInfo) {
-      const halfPot = Math.max(raiseInfo.min, Math.round(input.currentBet + input.potSize * 0.5));
-      const pot = Math.max(raiseInfo.min, Math.round(input.currentBet + input.potSize));
-      const twoPot = Math.max(raiseInfo.min, Math.round(input.currentBet + input.potSize * 2));
-      raiseSuggestions = {
-        min: raiseInfo.min,
-        halfPot: Math.min(halfPot, raiseInfo.max),
-        pot: Math.min(pot, raiseInfo.max),
-        twoPot: Math.min(twoPot, raiseInfo.max),
-        allInAmount: raiseInfo.max
-      };
-    }
-
-    // Map quality to label
-    const q = baseline.quality;
-    let handQualityLabel;
-    if (q >= VERY_STRONG_HAND_THRESHOLD) handQualityLabel = 'very_strong';
-    else if (q >= STRONG_HAND_THRESHOLD) handQualityLabel = 'strong';
-    else if (q >= MEDIUM_HAND_THRESHOLD) handQualityLabel = 'medium';
-    else if (q >= WEAK_HAND_THRESHOLD) handQualityLabel = 'marginal';
-    else handQualityLabel = 'weak';
+  _buildLLMInput(input, context) {
+    const { personality, actionMix, sampledAction, samplingContext,
+            targetSizing, sizingRange, qualityLabel } = context;
 
     const state = {
       street: input.street,
@@ -399,11 +550,21 @@ class AIDecisionEngine {
       playersInHand: input.playersInHand,
       position: input.position,
       bigBlind: input.bigBlind,
-      availableActions: actionNames,
-      raiseSuggestions,
-      handQualityLabel,
-      baselineRecommendation: baseline.baselineAction
+      // Decision context
+      personality: personality ? personality.name : '均衡',
+      handQualityLabel: qualityLabel,
+      actionMix: {
+        fold: +actionMix.fold.toFixed(2),
+        check: +actionMix.check.toFixed(2),
+        call: +actionMix.call.toFixed(2),
+        raise: +actionMix.raise.toFixed(2)
+      },
+      sampledAction,
+      samplingContext,
+      targetSizing: targetSizing || null,
+      sizingRange: sizingRange || null
     };
+
     return JSON.stringify(state);
   }
 
@@ -411,7 +572,6 @@ class AIDecisionEngine {
    * Extract text content from Azure OpenAI Responses API output.
    */
   _extractResponseText(data) {
-    // Responses API: data.output is an array of output items
     if (data.output && Array.isArray(data.output)) {
       for (const item of data.output) {
         if (item.type === 'message' && Array.isArray(item.content)) {
@@ -421,64 +581,32 @@ class AIDecisionEngine {
         }
       }
     }
-    // Fallback: direct text field
     if (data.output_text) return data.output_text;
     return null;
   }
 
   /**
-   * Parse a JSON {action, amount} from LLM text output.
+   * Parse LLM response: { amount, reasoning }
+   * LLM no longer decides the action, only provides reasoning and optional amount tuning.
    */
-  _parseLLMAction(text) {
-    // Extract the last JSON object from the text (reasoning comes before the action)
+  _parseLLMResponse(text) {
     const jsonMatches = text.match(/\{[^{}]*\}/g);
     if (!jsonMatches || jsonMatches.length === 0) return null;
-    const jsonMatch = [jsonMatches[jsonMatches.length - 1]];
+    const jsonStr = jsonMatches[jsonMatches.length - 1];
 
     try {
-      const obj = JSON.parse(jsonMatch[0]);
-      const validActions = ['fold', 'check', 'call', 'raise', 'allin'];
-      if (obj.action && validActions.includes(obj.action)) {
-        return {
-          action: obj.action,
-          amount: typeof obj.amount === 'number' ? obj.amount : null
-        };
-      }
+      const obj = JSON.parse(jsonStr);
+      return {
+        amount: typeof obj.amount === 'number' ? obj.amount : null,
+        reasoning: typeof obj.reasoning === 'string' ? obj.reasoning : null
+      };
     } catch {
-      // JSON parse failed
+      return null;
     }
-    return null;
   }
 
   /**
-   * Baseline fallback with personality-aware randomization.
-   */
-  _baselineFallback(input, baseline) {
-    const { baselineAction, quality, pConfig } = baseline;
-    const bluffProb = pConfig ? pConfig.bluffProb : DEFAULT_PERSONALITY_CONFIG.bluffProb;
-    const rand = Math.random();
-
-    // Occasionally bluff with weak hands (personality-driven probability)
-    if (quality < WEAK_HAND_THRESHOLD && rand < bluffProb && input.callAmount === 0) {
-      const raiseInfo = input.availableActions.find(a => a.action === 'raise');
-      if (raiseInfo) {
-        return { action: 'raise', amount: raiseInfo.min, meta: { source: 'baseline', bluff: true } };
-      }
-    }
-
-    // Occasionally slow-play strong hands (fixed low probability)
-    if (quality >= VERY_STRONG_HAND_THRESHOLD && rand < 0.12) {
-      if (input.callAmount === 0) {
-        return { action: 'check', amount: null, meta: { source: 'baseline', slowplay: true } };
-      }
-      return { action: 'call', amount: null, meta: { source: 'baseline', slowplay: true } };
-    }
-
-    return { ...baselineAction };
-  }
-
-  /**
-   * Step 4: Validate that the decided action is legal.
+   * Validate that the decided action is legal.
    * @returns {boolean}
    */
   validateAction(decision, input) {
@@ -490,33 +618,48 @@ class AIDecisionEngine {
     const validActions = ['fold', 'check', 'call', 'raise', 'allin'];
     if (!validActions.includes(action)) return false;
 
-    // Fold is always legal
     if (action === 'fold') return true;
 
-    // Check requires no bet to match
     if (action === 'check') {
       return availableActions.includes('check') || currentBet <= playerBet;
     }
 
-    // Call requires bet to match
     if (action === 'call') {
       const callInfo = availableActions.find(a => a.action === 'call');
       return !!callInfo || (currentBet > playerBet && playerChips > 0);
     }
 
-    // Raise requires valid amount within range
     if (action === 'raise') {
       const raiseInfo = availableActions.find(a => a.action === 'raise');
       if (!raiseInfo || amount == null) return false;
       return amount >= raiseInfo.min && amount <= raiseInfo.max;
     }
 
-    // All-in requires chips
     if (action === 'allin') {
       return playerChips > 0;
     }
 
     return false;
+  }
+
+  /**
+   * Safe fallback when validateAction fails: check → call → fold.
+   */
+  _safeFallback(input) {
+    const { availableActions, currentBet, playerBet, callAmount } = input;
+
+    // Try check
+    if (availableActions.includes('check') || currentBet <= playerBet) {
+      return { action: 'check', amount: null, meta: { source: 'safeFallback' } };
+    }
+
+    // Try call
+    if (callAmount > 0) {
+      return { action: 'call', amount: null, meta: { source: 'safeFallback' } };
+    }
+
+    // Fold
+    return { action: 'fold', amount: null, meta: { source: 'safeFallback' } };
   }
 
   // --- Helper methods ---
@@ -527,7 +670,7 @@ class AIDecisionEngine {
   _estimatePreflopStrength(hand) {
     if (hand.length !== 2) return 0.3;
 
-    const r1 = hand[0].value; // 2-14 (2=2, ..., A=14)
+    const r1 = hand[0].value;
     const r2 = hand[1].value;
     const suited = hand[0].suit === hand[1].suit;
     const paired = r1 === r2;
@@ -535,16 +678,15 @@ class AIDecisionEngine {
     let score = 0;
 
     if (paired) {
-      // Pairs: AA=1.0, KK=0.95, ..., 22=0.5
       score = 0.5 + (r1 - 2) * 0.042;
     } else {
       const high = Math.max(r1, r2);
       const low = Math.min(r1, r2);
       const gap = high - low;
 
-      score = (high + low) / 28; // base score from card ranks
+      score = (high + low) / 28;
       if (suited) score += 0.06;
-      if (gap <= 2) score += 0.04; // connected
+      if (gap <= 2) score += 0.04;
       if (gap >= 5) score -= 0.05;
     }
 
@@ -555,8 +697,6 @@ class AIDecisionEngine {
    * Convert HandEvaluator result to 0-1 quality scale.
    */
   _handRankToQuality(evalResult) {
-    // Hand ranks from HandEvaluator (higher score = better)
-    // score[0] is the hand rank: 1=high card ... 9=straight flush
     const rank = evalResult.score[0];
     const rankMap = {
       1: 0.15, // high card
@@ -583,12 +723,10 @@ class AIDecisionEngine {
     const dealerSeat = game.players[game.dealerIndex]?.seat;
     const playerSeat = game.players[playerIdx]?.seat;
 
-    // Simple position: early / middle / late / blinds
     const seats = inHand.map(p => p.seat).sort((a, b) => a - b);
     const dealerPos = seats.indexOf(dealerSeat);
     const playerPos = seats.indexOf(playerSeat);
 
-    // Relative position from dealer
     const relPos = ((playerPos - dealerPos) + n) % n;
 
     if (relPos === 0) return 'dealer';

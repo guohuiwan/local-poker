@@ -935,6 +935,37 @@
   gap: 6px;
 }
 
+/* My hand section in showdown */
+.showdown-my-hand {
+  background: linear-gradient(135deg, rgba(240, 192, 64, 0.12), rgba(240, 192, 64, 0.05));
+  border: 2px solid rgba(240, 192, 64, 0.4);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 0 20px rgba(240, 192, 64, 0.15),
+              inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.showdown-my-hand-label {
+  font-size: 14px;
+  color: var(--gold);
+  margin-bottom: 10px;
+  letter-spacing: 1px;
+  font-weight: 700;
+  text-shadow: 0 0 10px var(--gold-glow);
+}
+
+.showdown-my-hand-cards {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.showdown-my-hand-cards .card {
+  box-shadow: 0 0 12px rgba(240, 192, 64, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(240, 192, 64, 0.6);
+}
+
 /* Hole card highlight */
 .card.card-hole {
   box-shadow: 0 0 6px rgba(255, 215, 0, 0.8), 0 0 12px rgba(255, 215, 0, 0.4);
