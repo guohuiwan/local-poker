@@ -61,6 +61,12 @@
   const btnNextHand = document.getElementById('btn-next-hand');
   const btnCloseShowdown = document.getElementById('btn-close-showdown');
 
+  // Chat elements
+  const chatContainer = document.getElementById('chat-container');
+  const chatMessages = document.getElementById('chat-messages');
+  const chatInput = document.getElementById('chat-input');
+  const btnSendChat = document.getElementById('btn-send-chat');
+
   // Action buttons
   const btnFold = document.getElementById('btn-fold');
   const btnCheck = document.getElementById('btn-check');
@@ -509,6 +515,51 @@
 
   socket.on('room:playerLeft', (data) => {
     addLog('系统', `${data.playerName} 离开了房间`);
+  });
+
+  // --- Chat Events ---
+
+  socket.on('chat:message', (data) => {
+    addChatMessage(data);
+  });
+
+  function addChatMessage(data) {
+    const { playerName, message, isAI } = data;
+    const entry = document.createElement('div');
+    entry.className = 'chat-message';
+    if (isAI) {
+      entry.classList.add('chat-ai');
+    }
+    entry.innerHTML = `<span class="chat-name ${isAI ? 'ai' : ''}">${playerName}</span><span class="chat-text">${message}</span>`;
+    chatMessages.appendChild(entry);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Keep max 50 messages
+    while (chatMessages.children.length > 50) {
+      chatMessages.removeChild(chatMessages.firstChild);
+    }
+  }
+
+  function sendChatMessage() {
+    const message = chatInput.value.trim();
+    if (!message) return;
+
+    socket.emit('chat:send', { message }, (res) => {
+      if (res && !res.success) {
+        alert(res.error || '发送失败');
+      }
+    });
+
+    chatInput.value = '';
+  }
+
+  btnSendChat.addEventListener('click', sendChatMessage);
+
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
   });
 
   // --- Timer ---

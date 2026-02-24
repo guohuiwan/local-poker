@@ -3,6 +3,9 @@ const { aiPlayerManager } = require('./ai/AIPlayerManager');
 
 const roomManager = new RoomManager();
 
+// Store io reference for AI chat broadcasting
+let ioInstance = null;
+
 // Track socket -> player mapping
 const socketToPlayer = new Map(); // socketId -> { roomId, playerId, playerName }
 
@@ -34,6 +37,7 @@ function broadcastGameStateToHumans(room, io, eventName = 'game:state') {
 }
 
 function setupSocketHandlers(io) {
+  ioInstance = io;
 
   io.on('connection', (socket) => {
     console.log(`连接: ${socket.id}`);
@@ -308,6 +312,27 @@ function setupSocketHandlers(io) {
       }
     });
 
+    // --- Chat Events ---
+
+    socket.on('chat:send', (data) => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+
+      const room = roomManager.getRoom(info.roomId);
+      if (!room) return;
+
+      const { message } = data;
+      if (!message || !message.trim()) return;
+
+      // Broadcast chat message to all players in room
+      io.to(room.id).emit('chat:message', {
+        playerId: socket.id,
+        playerName: info.playerName,
+        message: message.trim(),
+        timestamp: Date.now()
+      });
+    });
+
     // --- Disconnection ---
 
     socket.on('disconnect', () => {
@@ -322,7 +347,7 @@ function setupSocketHandlers(io) {
  * Called after every game state transition that might change whose turn it is.
  */
 function scheduleAIAction(room, io) {
-  aiPlayerManager.checkAndScheduleAIAction(room, (playerId, action, amount) => {
+  aiPlayerManager(io).checkAndScheduleAIAction(room, (playerId, action, amount) => {
     if (!room.game) return;
 
     // Execute the AI's action through the normal game engine
