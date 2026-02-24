@@ -1,10 +1,11 @@
 const { RoomManager } = require('./RoomManager');
-const { aiPlayerManager } = require('./ai/AIPlayerManager');
+const { aiPlayerManager, AIPlayerManager, AI_ID_PREFIX } = require('./ai/AIPlayerManager');
 
 const roomManager = new RoomManager();
 
 // Store io reference for AI chat broadcasting
 let ioInstance = null;
+let aiManager = null;
 
 // Track socket -> player mapping
 const socketToPlayer = new Map(); // socketId -> { roomId, playerId, playerName }
@@ -38,6 +39,7 @@ function broadcastGameStateToHumans(room, io, eventName = 'game:state') {
 
 function setupSocketHandlers(io) {
   ioInstance = io;
+  aiManager = aiPlayerManager(io); // Initialize AI manager with io instance
 
   io.on('connection', (socket) => {
     console.log(`连接: ${socket.id}`);
@@ -180,7 +182,7 @@ function setupSocketHandlers(io) {
         return callback({ success: false, error: '游戏已开始，无法添加AI' });
       }
 
-      const result = aiPlayerManager.addAIPlayer(room);
+      const result = aiManager.addAIPlayer(room);
       if (!result.success) return callback(result);
 
       io.to(room.id).emit('room:update', room.getState());
@@ -199,7 +201,7 @@ function setupSocketHandlers(io) {
       }
 
       const { aiPlayerId } = data;
-      const result = aiPlayerManager.removeAIPlayer(room, aiPlayerId);
+      const result = aiManager.removeAIPlayer(room, aiPlayerId);
       if (!result.success) return callback(result);
 
       io.to(room.id).emit('room:update', room.getState());
@@ -474,7 +476,7 @@ function startActionTimer(room, io) {
   if (!currentPlayer || currentPlayer.folded || currentPlayer.allIn) return;
 
   // AI players handle their own timing via AIPlayerManager
-  if (aiPlayerManager.isAIPlayer(currentPlayer.id)) return;
+  if (aiManager.isAIPlayer(currentPlayer.id)) return;
 
   // Notify all players about the timer
   io.to(room.id).emit('game:timer', {
@@ -589,7 +591,7 @@ function handleLeave(socket, io) {
 
   if (room.isEmpty()) {
     clearActionTimer(room.id);
-    aiPlayerManager.cleanupRoom(room.id);
+    aiManager.cleanupRoom(room.id);
     if (room.nextHandTimer) clearTimeout(room.nextHandTimer);
     roomManager.removeRoom(room.id);
   }
