@@ -15,17 +15,61 @@ const AI_ID_PREFIX = 'ai_';
 const AI_THINK_DELAY_MIN = 0;  // ms — minimum "thinking" time
 const AI_THINK_DELAY_MAX = 0;  // ms — maximum "thinking" time
 
+// AI chat messages by personality
+const AI_CHAT_MESSAGES = {
+  balanced: [
+    '这手牌看起来不错',
+    '让我想想...',
+    '这把很有意思',
+    '我看好这一手',
+    '这个底池不错',
+    '稳扎稳打',
+    '等待时机',
+    '这一局很精彩',
+    '保持冷静',
+    '祝大家好运'
+  ],
+  bluffer: [
+    '谁在诈唬？',
+    '吓唬不了我',
+    '这把我要搞点事情',
+    '嘿嘿，有意思',
+    '你们以为我有好牌？',
+    '诈唬的艺术',
+    '这一把看你们怎么应对',
+    '诈唬大师在此',
+    '有时候得靠演技'
+  ],
+  aggressive: [
+    '干！',
+    '别怂',
+    '这把要大干一场',
+    '谁怕谁',
+    '加注才是王道',
+    '激进是我的风格',
+    '要的就是刺激',
+    '别跟我比加注',
+    '这把我要赢了',
+    '干到底'
+  ]
+};
+
 class AIPlayerManager {
-  constructor() {
+  constructor(io) {
     this.engine = new AIDecisionEngine();
+    this.io = io; // Socket.IO instance for chat broadcasting
     // Track AI players per room: roomId -> Set<playerId>
     this.aiPlayers = new Map();
     // Track AI personalities per room: roomId -> Map<playerId, personality>
     this.aiPersonalities = new Map();
     // Track pending AI action timers: roomId -> timeoutId
     this.pendingActions = new Map();
+    // Track AI chat cooldowns: roomId -> Map<playerId, lastChatTime>
+    this.chatCooldowns = new Map();
     // Counter for unique AI IDs
     this._nextId = 1;
+    // Chat cooldown: minimum 15 seconds between AI messages
+    this.CHAT_COOLDOWN = 15000;
   }
 
   /**
@@ -141,6 +185,11 @@ class AIPlayerManager {
     // Get AI personality
     const personality = this.aiPersonalities.get(room.id)?.get(playerId);
 
+    // Random chance to chat during the turn (10% chance)
+    if (personality && Math.random() < 0.10) {
+      this.sendAIMessage(room.id, playerId, currentPlayer.name, personality.id);
+    }
+
     const timer = setTimeout(async () => {
       this.pendingActions.delete(room.id);
 
@@ -171,16 +220,65 @@ class AIPlayerManager {
   }
 
   /**
+   * Send a chat message from AI player.
+   * @param {string} roomId
+   * @param {string} aiPlayerId
+   * @param {string} aiPlayerName
+   * @param {string} personalityId
+   */
+  sendAIMessage(roomId, aiPlayerId, aiPlayerName, personalityId) {
+    // Check cooldown
+    if (!this.chatCooldowns.has(roomId)) {
+      this.chatCooldowns.set(roomId, new Map());
+    }
+    const roomCooldowns = this.chatCooldowns.get(roomId);
+    const lastChat = roomCooldowns.get(aiPlayerId);
+    const now = Date.now();
+
+    if (lastChat && (now - lastChat) < this.CHAT_COOLDOWN) {
+      return; // Too soon to chat again
+    }
+
+    // Update last chat time
+    roomCooldowns.set(aiPlayerId, now);
+
+    // Get message pool for this personality
+    const messages = AI_CHAT_MESSAGES[personalityId] || AI_CHAT_MESSAGES.balanced;
+
+    // Random message
+    const message = messages[Math.floor(Math.random() * messages.length)];
+
+    // Broadcast chat message
+    this.io.to(roomId).emit('chat:message', {
+      playerId: aiPlayerId,
+      playerName: aiPlayerName,
+      message: message,
+      timestamp: now,
+      isAI: true
+    });
+
+    console.log(`[AI][Chat] ${aiPlayerName}: ${message}`);
+  }
+
+  /**
    * Clean up all AI state for a room (when room is destroyed).
    */
   cleanupRoom(roomId) {
     this.clearPendingAction(roomId);
     this.aiPlayers.delete(roomId);
     this.aiPersonalities.delete(roomId);
+    this.chatCooldowns.delete(roomId);
   }
 }
 
-// Singleton instance
-const aiPlayerManager = new AIPlayerManager();
+// Singleton instance - needs io parameter
+let aiPlayerManagerInstance = null;
+
+function aiPlayerManager(io) {
+  if (!aiPlayerManagerInstance) {
+    aiPlayerManagerInstance = new AIPlayerManager(io);
+  }
+  return aiPlayerManagerInstance;
+}
 
 module.exports = { aiPlayerManager, AIPlayerManager, AI_ID_PREFIX };

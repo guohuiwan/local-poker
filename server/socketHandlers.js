@@ -1,7 +1,11 @@
 const { RoomManager } = require('./RoomManager');
-const { aiPlayerManager } = require('./ai/AIPlayerManager');
+const { aiPlayerManager, AIPlayerManager, AI_ID_PREFIX } = require('./ai/AIPlayerManager');
 
 const roomManager = new RoomManager();
+
+// Store io reference for AI chat broadcasting
+let ioInstance = null;
+let aiManager = null;
 
 // Track socket -> player mapping
 const socketToPlayer = new Map(); // socketId -> { roomId, playerId, playerName }
@@ -34,6 +38,8 @@ function broadcastGameStateToHumans(room, io, eventName = 'game:state') {
 }
 
 function setupSocketHandlers(io) {
+  ioInstance = io;
+  aiManager = aiPlayerManager(io); // Initialize AI manager with io instance
 
   io.on('connection', (socket) => {
     console.log(`连接: ${socket.id}`);
@@ -176,7 +182,7 @@ function setupSocketHandlers(io) {
         return callback({ success: false, error: '游戏已开始，无法添加AI' });
       }
 
-      const result = aiPlayerManager.addAIPlayer(room);
+      const result = aiManager.addAIPlayer(room);
       if (!result.success) return callback(result);
 
       io.to(room.id).emit('room:update', room.getState());
@@ -195,7 +201,7 @@ function setupSocketHandlers(io) {
       }
 
       const { aiPlayerId } = data;
-      const result = aiPlayerManager.removeAIPlayer(room, aiPlayerId);
+      const result = aiManager.removeAIPlayer(room, aiPlayerId);
       if (!result.success) return callback(result);
 
       io.to(room.id).emit('room:update', room.getState());
@@ -308,6 +314,27 @@ function setupSocketHandlers(io) {
       }
     });
 
+    // --- Chat Events ---
+
+    socket.on('chat:send', (data) => {
+      const info = socketToPlayer.get(socket.id);
+      if (!info) return;
+
+      const room = roomManager.getRoom(info.roomId);
+      if (!room) return;
+
+      const { message } = data;
+      if (!message || !message.trim()) return;
+
+      // Broadcast chat message to all players in room
+      io.to(room.id).emit('chat:message', {
+        playerId: socket.id,
+        playerName: info.playerName,
+        message: message.trim(),
+        timestamp: Date.now()
+      });
+    });
+
     // --- Disconnection ---
 
     socket.on('disconnect', () => {
@@ -322,7 +349,7 @@ function setupSocketHandlers(io) {
  * Called after every game state transition that might change whose turn it is.
  */
 function scheduleAIAction(room, io) {
-  aiPlayerManager.checkAndScheduleAIAction(room, (playerId, action, amount) => {
+  aiPlayerManager(io).checkAndScheduleAIAction(room, (playerId, action, amount) => {
     if (!room.game) return;
 
     // Execute the AI's action through the normal game engine
@@ -449,7 +476,7 @@ function startActionTimer(room, io) {
   if (!currentPlayer || currentPlayer.folded || currentPlayer.allIn) return;
 
   // AI players handle their own timing via AIPlayerManager
-  if (aiPlayerManager.isAIPlayer(currentPlayer.id)) return;
+  if (aiManager.isAIPlayer(currentPlayer.id)) return;
 
   // Notify all players about the timer
   io.to(room.id).emit('game:timer', {
@@ -564,7 +591,7 @@ function handleLeave(socket, io) {
 
   if (room.isEmpty()) {
     clearActionTimer(room.id);
-    aiPlayerManager.cleanupRoom(room.id);
+    aiManager.cleanupRoom(room.id);
     if (room.nextHandTimer) clearTimeout(room.nextHandTimer);
     roomManager.removeRoom(room.id);
   }
