@@ -44,14 +44,6 @@
         </div>
         <div class="timer-text" id="timer-text"></div>
 
-        <div class="chat-container" id="chat-container">
-          <div class="chat-messages" id="chat-messages"></div>
-          <div class="chat-input-area">
-            <input type="text" id="chat-input" class="chat-input" placeholder="输入消息..." maxlength="100">
-            <button class="btn-send-chat" id="btn-send-chat">发送</button>
-          </div>
-        </div>
-
         <div class="action-bar hidden" id="action-bar">
           <button class="btn-fold" id="btn-fold">弃牌</button>
           <button class="btn-check hidden" id="btn-check">过牌</button>
@@ -69,7 +61,27 @@
         </div>
       </div>
 
-      <div class="game-log" id="game-log"></div>
+      <aside class="comms-dock" id="comms-dock">
+        <section class="chat-container" id="chat-container">
+          <header class="comms-header">
+            <div class="comms-kicker">TABLE TALK</div>
+            <h3 class="comms-title">高桌私语</h3>
+          </header>
+          <div class="chat-messages" id="chat-messages"></div>
+          <div class="chat-input-area">
+            <input type="text" id="chat-input" class="chat-input" placeholder="输入消息..." maxlength="100">
+            <button class="btn-send-chat" id="btn-send-chat">发送</button>
+          </div>
+        </section>
+
+        <section class="game-log-panel">
+          <header class="comms-header comms-header-log">
+            <div class="comms-kicker">GAME LOG</div>
+            <h3 class="comms-title">牌局记录</h3>
+          </header>
+          <div class="game-log" id="game-log"></div>
+        </section>
+      </aside>
     </div>
 
     <!-- Showdown Overlay -->

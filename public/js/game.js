@@ -523,16 +523,63 @@
     addChatMessage(data);
   });
 
+  function formatChatTime(timestamp) {
+    const date = new Date(typeof timestamp === 'number' ? timestamp : Date.now());
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
   function addChatMessage(data) {
-    const { playerName, message, isAI } = data;
+    const { playerId, playerName, message, isAI, timestamp } = data;
+    if (!message) return;
+
+    const isMe = playerId === myId();
     const entry = document.createElement('div');
     entry.className = 'chat-message';
+    if (isMe) {
+      entry.classList.add('is-me');
+    }
     if (isAI) {
       entry.classList.add('chat-ai');
     }
-    entry.innerHTML = `<span class="chat-name ${isAI ? 'ai' : ''}">${playerName}</span><span class="chat-text">${message}</span>`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+
+    const meta = document.createElement('div');
+    meta.className = 'chat-meta';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = `chat-name ${isAI ? 'ai' : ''}`.trim();
+    nameEl.textContent = playerName || '未知玩家';
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'chat-time';
+    timeEl.textContent = formatChatTime(timestamp);
+
+    const textEl = document.createElement('div');
+    textEl.className = 'chat-text';
+    textEl.textContent = message;
+
+    meta.appendChild(nameEl);
+    meta.appendChild(timeEl);
+    bubble.appendChild(meta);
+    bubble.appendChild(textEl);
+    entry.appendChild(bubble);
+
     chatMessages.appendChild(entry);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    if (typeof chatMessages.scrollTo === 'function') {
+      chatMessages.scrollTo({
+        top: chatMessages.scrollHeight,
+        behavior: 'smooth'
+      });
+    } else {
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
 
     // Keep max 50 messages
     while (chatMessages.children.length > 50) {
@@ -555,7 +602,7 @@
 
   btnSendChat.addEventListener('click', sendChatMessage);
 
-  chatInput.addEventListener('keypress', (e) => {
+  chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendChatMessage();
