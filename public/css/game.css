@@ -198,17 +198,19 @@
 
 /* ===== Table ===== */
 .table-area {
-  flex: 1;
+  grid-area: table;
   position: relative;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px var(--table-side-padding, 10px) 14px 16px;
+  min-height: 0;
+  padding: 10px 8px 6px;
 }
 
 .poker-table {
-  width: min(92vw, calc(100vw - var(--table-side-padding, 10px) - 24px), 820px);
-  height: min(55vh, 420px);
+  width: min(100%, 860px);
+  height: clamp(300px, 54vh, 440px);
   background:
     radial-gradient(ellipse at 40% 35%, rgba(255, 255, 255, 0.06) 0%, transparent 50%),
     radial-gradient(ellipse at center, var(--green-felt-light) 0%, var(--green-felt) 60%, var(--green-felt-dark) 100%);
@@ -484,8 +486,11 @@
 .my-hand-area {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  padding: 8px 0 4px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 96px;
+  padding: 2px 0 0;
 }
 
 .my-hand-area .card {
@@ -512,46 +517,67 @@
 
 /* ===== Bottom Controls ===== */
 .bottom-controls {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  z-index: 100;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  gap: 12px;
-  padding: 12px 20px;
-  pointer-events: none;
-}
-
-.bottom-controls > * {
-  pointer-events: auto;
-}
-
-.my-hand-area {
-  flex: 1;
+  grid-area: controls;
+  position: relative;
+  z-index: 130;
   display: flex;
   justify-content: center;
+  align-items: flex-end;
+  padding: 2px 6px max(10px, env(safe-area-inset-bottom));
+}
+
+.action-center {
+  position: relative;
+  z-index: 130;
+  width: min(960px, 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(7, 12, 21, 0.75), rgba(7, 12, 21, 0.92));
+  box-shadow: 0 -8px 26px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(18px);
+}
+
+.timer-cluster {
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 /* ===== Action Bar ===== */
 .action-bar {
-  padding: 12px 20px;
+  width: 100%;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(10, 14, 23, 0.74) 0%, rgba(10, 14, 23, 0.9) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.action-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: linear-gradient(180deg, rgba(10, 14, 23, 0.92) 0%, rgba(10, 14, 23, 0.98) 100%);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(16px);
+}
+
+.action-row-main {
+  justify-content: center;
   flex-wrap: wrap;
+  gap: 10px;
+}
+
+.action-row-raise {
   justify-content: center;
   width: 100%;
-  position: relative;
-  z-index: 100;
 }
 
 .action-bar button {
@@ -698,15 +724,20 @@
 .raise-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: min(620px, 100%);
   background: rgba(255, 255, 255, 0.04);
-  padding: 6px 14px;
+  padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .raise-controls input[type="range"] {
-  width: 120px;
+  flex: 1 1 140px;
+  min-width: 120px;
+  max-width: 220px;
   height: 4px;
   accent-color: var(--accent);
   padding: 0;
@@ -744,8 +775,8 @@
 
 /* ===== Timer ===== */
 .timer-bar {
-  width: min(95vw, 800px);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   height: 5px;
   background: rgba(255, 255, 255, 0.06);
   position: relative;
@@ -772,8 +803,8 @@
   font-size: 15px;
   font-weight: 700;
   color: var(--gold);
-  height: 22px;
-  margin: 4px 0;
+  min-height: 22px;
+  margin: 0;
   text-shadow: 0 0 12px var(--gold-glow);
   letter-spacing: 0.5px;
 }
@@ -996,48 +1027,39 @@
 
 /* ===== Game View ===== */
 #game-view {
-  --comms-dock-width: clamp(270px, 21vw, 330px);
-  --comms-dock-bottom: 124px;
-  --table-side-padding: calc(var(--comms-dock-width) + 34px);
+  --comms-dock-width: clamp(270px, 23vw, 340px);
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--comms-dock-width);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "status status"
+    "table comms"
+    "controls comms";
+  column-gap: 12px;
+  row-gap: 8px;
   position: relative;
+  padding: 0 10px 6px;
+}
+
+#game-view > .status-message {
+  grid-area: status;
+  margin: 0 -10px;
 }
 
 /* ===== Comms Dock ===== */
 .comms-dock {
-  position: absolute;
-  right: max(12px, env(safe-area-inset-right));
-  bottom: var(--comms-dock-bottom);
-  width: var(--comms-dock-width);
+  grid-area: comms;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  z-index: 125;
-  pointer-events: none;
-}
-
-.comms-dock > * {
-  pointer-events: auto;
-}
-
-.comms-toggle {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
   width: 100%;
-  padding: 8px 12px;
-  border-radius: 11px;
-  border: 1px solid rgba(240, 192, 64, 0.36);
-  background: linear-gradient(165deg, rgba(240, 192, 64, 0.2), rgba(240, 192, 64, 0.08));
-  color: #f3ead4;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  backdrop-filter: blur(10px);
+  min-height: 0;
+  align-self: stretch;
+  min-width: 0;
+  max-width: 100%;
+  z-index: 140;
 }
 
 .chat-container,
@@ -1093,7 +1115,8 @@
 
 /* ===== Chat ===== */
 .chat-container {
-  height: min(320px, 38vh);
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1260,7 +1283,8 @@
 
 /* ===== Game Log ===== */
 .game-log-panel {
-  height: min(160px, 20vh);
+  flex: 0 0 clamp(122px, 21vh, 182px);
+  min-height: 108px;
   display: flex;
   flex-direction: column;
 }
@@ -1374,28 +1398,29 @@
 }
 
 /* Responsive layout for table + comms */
-@media (max-width: 1680px) {
+@media (max-width: 1440px) {
   #game-view {
-    --comms-dock-width: clamp(250px, 20vw, 300px);
-    --table-side-padding: calc(var(--comms-dock-width) + 28px);
+    --comms-dock-width: clamp(248px, 24vw, 300px);
   }
 
   .poker-table {
-    width: min(90vw, calc(100vw - var(--table-side-padding) - 20px), 790px);
-    height: min(53vh, 400px);
+    height: clamp(280px, 50vh, 400px);
+  }
+
+  .my-hand-area .card {
+    width: 72px;
+    height: 100px;
   }
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1240px) {
   #game-view {
-    --comms-dock-width: 270px;
-    --comms-dock-bottom: 118px;
-    --table-side-padding: 292px;
+    --comms-dock-width: clamp(228px, 28vw, 276px);
+    column-gap: 10px;
   }
 
   .poker-table {
-    width: min(88vw, calc(100vw - var(--table-side-padding) - 18px), 740px);
-    height: min(49vh, 370px);
+    height: clamp(260px, 47vh, 360px);
   }
 
   .player-info {
@@ -1411,120 +1436,123 @@
   .player-chips {
     font-size: 14px;
   }
-}
 
-@media (max-width: 1100px) {
-  #game-view {
-    --table-side-padding: 16px;
-    --comms-dock-width: min(520px, calc(100vw - 20px));
-    --comms-dock-bottom: 110px;
-  }
-
-  .table-area {
-    padding: 8px 12px 148px;
-  }
-
-  .comms-dock {
-    left: 10px;
-    right: 10px;
-    width: auto;
-    display: grid;
-    grid-template-columns: 1.4fr 1fr;
-    gap: 8px;
-  }
-
-  .chat-container {
-    min-width: 0;
-    height: min(220px, 30vh);
-  }
-
-  .game-log-panel {
-    min-width: 0;
-    height: min(156px, 20vh);
+  .action-bar button {
+    min-width: 84px;
+    padding: 9px 16px;
   }
 }
 
-@media (max-width: 920px), (max-height: 820px) {
+@media (max-width: 980px), (max-height: 780px) {
   #game-view {
-    --table-side-padding: 14px;
-    --comms-dock-bottom: 104px;
+    --comms-dock-width: clamp(148px, 33vw, 212px);
+    grid-template-columns: minmax(0, 1fr) var(--comms-dock-width);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "status status"
+      "table comms"
+      "controls comms";
+    column-gap: 8px;
+    row-gap: 8px;
+    padding: 0 6px 8px;
+  }
+
+  #game-view > .status-message {
+    margin: 0 -6px;
   }
 
   .table-area {
-    padding: 8px 10px 134px;
+    padding: 6px 2px 4px;
   }
 
   .poker-table {
-    width: min(94vw, 640px);
-    height: min(43vh, 320px);
+    width: min(100%, 620px);
+    height: clamp(208px, 38vh, 296px);
     border-width: 4px;
     outline-width: 3px;
   }
 
   .comms-dock {
-    left: 10px;
-    right: 10px;
-    width: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
   }
 
-  .comms-dock.is-compact .comms-toggle {
-    display: flex;
-  }
-
-  .comms-dock.is-collapsed .chat-container,
-  .comms-dock.is-collapsed .game-log-panel {
-    display: none;
-  }
-
-  .comms-dock.is-collapsed {
-    left: auto;
-    right: 10px;
-    width: min(220px, calc(100vw - 20px));
+  .chat-container,
+  .game-log-panel {
+    border-color: rgba(240, 192, 64, 0.28);
+    background: linear-gradient(165deg, rgba(8, 14, 23, 0.74), rgba(8, 14, 23, 0.88));
+    backdrop-filter: blur(12px);
   }
 
   .chat-container {
-    height: min(190px, 27vh);
+    flex: 1 1 auto;
+    min-height: 140px;
   }
 
   .game-log-panel {
-    height: min(120px, 16vh);
+    flex: 0 0 clamp(82px, 16vh, 120px);
+    min-height: 72px;
   }
 
   .chat-text {
     font-size: 12.5px;
   }
 
-  .bottom-controls {
-    gap: 8px;
-    padding: 8px 12px;
+  .action-center {
+    border-radius: 14px;
+    padding: 8px 10px 9px;
+    background: linear-gradient(180deg, rgba(7, 12, 21, 0.66), rgba(7, 12, 21, 0.88));
   }
 
   .action-bar {
+    padding: 8px 10px;
     gap: 8px;
-    padding: 10px 12px;
+  }
+
+  .action-row-main {
+    gap: 8px;
+  }
+
+  .action-bar button {
+    min-width: 78px;
+    padding: 9px 14px;
+  }
+
+  .my-hand-area {
+    min-height: 82px;
+    gap: 8px;
   }
 
   .my-hand-area .card {
-    width: 68px;
-    height: 95px;
+    width: 64px;
+    height: 90px;
+  }
+
+  .my-hand-area .card .card-rank {
+    font-size: 22px;
+  }
+
+  .my-hand-area .card .card-suit {
+    font-size: 24px;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 680px) {
   #game-view {
-    --comms-dock-bottom: 98px;
+    --comms-dock-width: clamp(126px, 40vw, 168px);
+    column-gap: 6px;
+    padding: 0 4px 6px;
   }
 
-  .table-area {
-    padding: 8px 8px 126px;
+  #game-view > .status-message {
+    margin: 0 -4px;
   }
 
   .poker-table {
-    width: min(95vw, 520px);
-    height: min(38vh, 270px);
+    width: min(100%, 460px);
+    height: clamp(184px, 33vh, 244px);
   }
 
   .player-info {
@@ -1546,30 +1574,12 @@
     padding: 2px 5px;
   }
 
-  .comms-dock.is-collapsed {
-    right: 8px;
-    width: min(200px, calc(100vw - 16px));
-  }
-
-  .comms-toggle {
-    padding: 7px 10px;
-    font-size: 11px;
-  }
-
   .comms-header {
     padding: 8px 10px 7px;
   }
 
   .comms-title {
     font-size: 15px;
-  }
-
-  .chat-container {
-    height: min(162px, 24vh);
-  }
-
-  .game-log-panel {
-    height: min(94px, 14vh);
   }
 
   .chat-input-area {
@@ -1588,8 +1598,52 @@
     font-size: 11px;
   }
 
+  .raise-controls {
+    padding: 7px 8px;
+  }
+
+  .raise-controls input[type="range"] {
+    flex-basis: 112px;
+    min-width: 104px;
+  }
+
+  .raise-input {
+    width: 64px;
+    padding: 5px 6px;
+    font-size: 13px;
+  }
+
+  .action-bar button {
+    min-width: 72px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
   .my-hand-area .card {
-    width: 60px;
-    height: 84px;
+    width: 56px;
+    height: 80px;
+  }
+}
+
+@media (max-height: 700px) {
+  .poker-table {
+    height: clamp(210px, 36vh, 280px);
+  }
+
+  .my-hand-area {
+    min-height: 72px;
+  }
+
+  .my-hand-area .card {
+    width: 52px;
+    height: 74px;
+  }
+
+  .chat-container {
+    flex-basis: min(26vh, 200px);
+  }
+
+  .game-log-panel {
+    flex-basis: min(15vh, 108px);
   }
 }
