@@ -203,11 +203,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 10px;
+  padding: 12px var(--table-side-padding, 10px) 14px 16px;
 }
 
 .poker-table {
-  width: min(95vw, 800px);
+  width: min(92vw, calc(100vw - var(--table-side-padding, 10px) - 24px), 820px);
   height: min(55vh, 420px);
   background:
     radial-gradient(ellipse at 40% 35%, rgba(255, 255, 255, 0.06) 0%, transparent 50%),
@@ -996,6 +996,9 @@
 
 /* ===== Game View ===== */
 #game-view {
+  --comms-dock-width: clamp(270px, 21vw, 330px);
+  --comms-dock-bottom: 124px;
+  --table-side-padding: calc(var(--comms-dock-width) + 34px);
   flex: 1;
   min-height: 0;
   display: flex;
@@ -1006,12 +1009,12 @@
 /* ===== Comms Dock ===== */
 .comms-dock {
   position: absolute;
-  right: 20px;
-  bottom: 124px;
-  width: min(360px, calc(100vw - 32px));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: var(--comms-dock-bottom);
+  width: var(--comms-dock-width);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   z-index: 125;
   pointer-events: none;
 }
@@ -1020,9 +1023,26 @@
   pointer-events: auto;
 }
 
+.comms-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 11px;
+  border: 1px solid rgba(240, 192, 64, 0.36);
+  background: linear-gradient(165deg, rgba(240, 192, 64, 0.2), rgba(240, 192, 64, 0.08));
+  color: #f3ead4;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  backdrop-filter: blur(10px);
+}
+
 .chat-container,
 .game-log-panel {
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid rgba(240, 192, 64, 0.22);
   background: linear-gradient(165deg, rgba(14, 21, 33, 0.92) 0%, rgba(7, 11, 19, 0.96) 100%);
   box-shadow:
@@ -1046,7 +1066,7 @@
 }
 
 .comms-header {
-  padding: 10px 14px 9px;
+  padding: 9px 12px 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(240, 192, 64, 0.14), rgba(240, 192, 64, 0.02));
 }
@@ -1060,7 +1080,7 @@
 
 .comms-title {
   font-family: var(--font-serif);
-  font-size: 17px;
+  font-size: 16px;
   letter-spacing: 0.6px;
   margin-top: 2px;
   color: #f3ead4;
@@ -1073,7 +1093,7 @@
 
 /* ===== Chat ===== */
 .chat-container {
-  height: min(360px, 42vh);
+  height: min(320px, 38vh);
   display: flex;
   flex-direction: column;
 }
@@ -1081,7 +1101,7 @@
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 12px 10px;
+  padding: 10px 10px 8px;
   scrollbar-width: thin;
   scrollbar-color: rgba(240, 192, 64, 0.6) transparent;
 }
@@ -1182,7 +1202,7 @@
 .chat-input-area {
   display: flex;
   gap: 8px;
-  padding: 10px;
+  padding: 9px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.26));
   transition: transform 0.22s ease, box-shadow 0.22s ease;
@@ -1240,7 +1260,7 @@
 
 /* ===== Game Log ===== */
 .game-log-panel {
-  height: min(190px, 24vh);
+  height: min(160px, 20vh);
   display: flex;
   flex-direction: column;
 }
@@ -1248,7 +1268,7 @@
 .game-log {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 12px 12px;
+  padding: 9px 10px 10px;
   font-size: 12px;
   color: var(--text-primary);
   scrollbar-width: thin;
@@ -1353,65 +1373,187 @@
   text-shadow: 0 0 12px var(--gold-glow);
 }
 
-/* Responsive layout for comms */
-@media (max-width: 1200px) {
-  .comms-dock {
-    right: 14px;
-    bottom: 120px;
-    width: min(330px, calc(100vw - 24px));
+/* Responsive layout for table + comms */
+@media (max-width: 1680px) {
+  #game-view {
+    --comms-dock-width: clamp(250px, 20vw, 300px);
+    --table-side-padding: calc(var(--comms-dock-width) + 28px);
+  }
+
+  .poker-table {
+    width: min(90vw, calc(100vw - var(--table-side-padding) - 20px), 790px);
+    height: min(53vh, 400px);
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1280px) {
+  #game-view {
+    --comms-dock-width: 270px;
+    --comms-dock-bottom: 118px;
+    --table-side-padding: 292px;
+  }
+
+  .poker-table {
+    width: min(88vw, calc(100vw - var(--table-side-padding) - 18px), 740px);
+    height: min(49vh, 370px);
+  }
+
+  .player-info {
+    min-width: 98px;
+    padding: 8px 12px;
+  }
+
+  .player-name {
+    font-size: 13px;
+    max-width: 106px;
+  }
+
+  .player-chips {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 1100px) {
+  #game-view {
+    --table-side-padding: 16px;
+    --comms-dock-width: min(520px, calc(100vw - 20px));
+    --comms-dock-bottom: 110px;
+  }
+
+  .table-area {
+    padding: 8px 12px 148px;
+  }
+
   .comms-dock {
-    width: min(300px, calc(100vw - 20px));
-    bottom: 118px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 8px;
   }
 
   .chat-container {
-    height: min(320px, 38vh);
+    min-width: 0;
+    height: min(220px, 30vh);
+  }
+
+  .game-log-panel {
+    min-width: 0;
+    height: min(156px, 20vh);
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 920px), (max-height: 820px) {
+  #game-view {
+    --table-side-padding: 14px;
+    --comms-dock-bottom: 104px;
+  }
+
+  .table-area {
+    padding: 8px 10px 134px;
+  }
+
+  .poker-table {
+    width: min(94vw, 640px);
+    height: min(43vh, 320px);
+    border-width: 4px;
+    outline-width: 3px;
+  }
+
   .comms-dock {
-    left: 12px;
-    right: 12px;
+    left: 10px;
+    right: 10px;
     width: auto;
-    bottom: 122px;
-    display: grid;
-    grid-template-columns: 1.5fr 1fr;
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .chat-container,
+  .comms-dock.is-compact .comms-toggle {
+    display: flex;
+  }
+
+  .comms-dock.is-collapsed .chat-container,
+  .comms-dock.is-collapsed .game-log-panel {
+    display: none;
+  }
+
+  .comms-dock.is-collapsed {
+    left: auto;
+    right: 10px;
+    width: min(220px, calc(100vw - 20px));
+  }
+
+  .chat-container {
+    height: min(190px, 27vh);
+  }
+
   .game-log-panel {
-    min-width: 0;
-    height: min(220px, 32vh);
-  }
-
-  .chat-messages {
-    padding: 10px;
+    height: min(120px, 16vh);
   }
 
   .chat-text {
     font-size: 12.5px;
   }
+
+  .bottom-controls {
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .action-bar {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .my-hand-area .card {
+    width: 68px;
+    height: 95px;
+  }
 }
 
-@media (max-width: 560px) {
-  .comms-dock {
-    grid-template-columns: 1fr;
-    gap: 8px;
-    bottom: 114px;
+@media (max-width: 640px) {
+  #game-view {
+    --comms-dock-bottom: 98px;
   }
 
-  .chat-container {
-    height: min(180px, 29vh);
+  .table-area {
+    padding: 8px 8px 126px;
   }
 
-  .game-log-panel {
-    height: min(112px, 17vh);
+  .poker-table {
+    width: min(95vw, 520px);
+    height: min(38vh, 270px);
+  }
+
+  .player-info {
+    min-width: 82px;
+    padding: 6px 8px;
+  }
+
+  .player-name {
+    font-size: 12px;
+    max-width: 88px;
+  }
+
+  .player-chips {
+    font-size: 12px;
+  }
+
+  .player-total-bet-display {
+    font-size: 10px;
+    padding: 2px 5px;
+  }
+
+  .comms-dock.is-collapsed {
+    right: 8px;
+    width: min(200px, calc(100vw - 16px));
+  }
+
+  .comms-toggle {
+    padding: 7px 10px;
+    font-size: 11px;
   }
 
   .comms-header {
@@ -1422,19 +1564,32 @@
     font-size: 15px;
   }
 
+  .chat-container {
+    height: min(162px, 24vh);
+  }
+
+  .game-log-panel {
+    height: min(94px, 14vh);
+  }
+
   .chat-input-area {
-    padding: 8px;
+    padding: 7px;
     gap: 6px;
   }
 
   .chat-input {
-    padding: 8px 10px;
+    padding: 7px 9px;
     font-size: 12px;
   }
 
   .btn-send-chat {
-    min-width: 56px;
-    padding: 8px 10px;
-    font-size: 12px;
+    min-width: 52px;
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+
+  .my-hand-area .card {
+    width: 60px;
+    height: 84px;
   }
 }

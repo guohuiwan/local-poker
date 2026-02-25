@@ -62,6 +62,14 @@
       </div>
 
       <aside class="comms-dock" id="comms-dock">
+        <button
+          class="comms-toggle"
+          id="comms-toggle"
+          type="button"
+          aria-expanded="true"
+          aria-controls="chat-container game-log-panel">
+          收起面板
+        </button>
         <section class="chat-container" id="chat-container">
           <header class="comms-header">
             <div class="comms-kicker">TABLE TALK</div>
@@ -74,7 +82,7 @@
           </div>
         </section>
 
-        <section class="game-log-panel">
+        <section class="game-log-panel" id="game-log-panel">
           <header class="comms-header comms-header-log">
             <div class="comms-kicker">GAME LOG</div>
             <h3 class="comms-title">牌局记录</h3>

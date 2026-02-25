@@ -62,6 +62,8 @@
   const btnCloseShowdown = document.getElementById('btn-close-showdown');
 
   // Chat elements
+  const commsDock = document.getElementById('comms-dock');
+  const btnToggleComms = document.getElementById('comms-toggle');
   const chatContainer = document.getElementById('chat-container');
   const chatMessages = document.getElementById('chat-messages');
   const chatInput = document.getElementById('chat-input');
@@ -84,6 +86,7 @@
   let autoStartInterval = null;
   let isGameStarted = false;
   let isGamePaused = false;
+  let commsManualCollapsed = null;
 
   /**
    * Helper function to bind button actions with common pattern.
@@ -102,6 +105,37 @@
         onSuccess(res);
       }
     });
+  }
+
+  function isCompactCommsViewport() {
+    return window.matchMedia('(max-width: 920px)').matches ||
+      window.matchMedia('(max-height: 820px)').matches;
+  }
+
+  function setCommsCollapsed(collapsed) {
+    if (!commsDock || !btnToggleComms) return;
+    commsDock.classList.toggle('is-collapsed', collapsed);
+    btnToggleComms.textContent = collapsed ? '展开面板' : '收起面板';
+    btnToggleComms.setAttribute('aria-expanded', String(!collapsed));
+  }
+
+  function syncCommsLayout() {
+    if (!commsDock || !btnToggleComms) return;
+    const compact = isCompactCommsViewport();
+    commsDock.classList.toggle('is-compact', compact);
+
+    if (!compact) {
+      commsManualCollapsed = null;
+      setCommsCollapsed(false);
+      return;
+    }
+
+    if (commsManualCollapsed === null) {
+      setCommsCollapsed(true);
+      return;
+    }
+
+    setCommsCollapsed(commsManualCollapsed);
   }
 
   // --- Waiting Room ---
@@ -608,6 +642,25 @@
       sendChatMessage();
     }
   });
+
+  if (btnToggleComms && commsDock) {
+    btnToggleComms.addEventListener('click', () => {
+      const nextCollapsed = !commsDock.classList.contains('is-collapsed');
+      commsManualCollapsed = nextCollapsed;
+      setCommsCollapsed(nextCollapsed);
+    });
+  }
+
+  chatInput.addEventListener('focus', () => {
+    if (!commsDock || !commsDock.classList.contains('is-compact')) return;
+    if (!commsDock.classList.contains('is-collapsed')) return;
+    commsManualCollapsed = false;
+    setCommsCollapsed(false);
+  });
+
+  window.addEventListener('resize', syncCommsLayout);
+  window.addEventListener('orientationchange', syncCommsLayout);
+  syncCommsLayout();
 
   // --- Timer ---
 
